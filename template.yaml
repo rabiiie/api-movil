@@ -57,6 +57,21 @@ Resources:
             Path: /yo/carpetas
             Method: GET
 
+  # Ruta de aprendizaje: devuelve la peticion entera.
+  # Se borra al terminar la etapa 3.
+  EcoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/eco/
+      Handler: app.lambda_handler
+      Events:
+        Eco:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiMovil
+            Path: /yo/eco
+            Method: GET
+
 Outputs:
   # La base es lo que se configura en la app. Las rutas se le pegan detras.
   # El identificador del API lo genera AWS al crearlo: si se borra la pila y

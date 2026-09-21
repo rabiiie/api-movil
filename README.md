@@ -101,3 +101,63 @@ sam delete --stack-name api-movil --region eu-central-1 --profile insyte
 | 7 | Registros, alarmas, limites de peticiones, despliegue reproducible | |
 
 PhotoDoc usa la misma cuenta de AWS pero trabaja en `us-west-2`. Esta API va en `eu-central-1` (Frankfurt): los datos de los tecnicos no salen de la UE.
+
+## 7. Ejercicios
+
+Cinco pruebas sobre lo desplegado. Cada una enseña una cosa y ninguna cuesta dinero.
+
+### 1. Donde van los print
+
+En una ventana de PowerShell:
+
+```powershell
+sam logs --stack-name api-movil --name CarpetasFunction --region eu-central-1 --profile insyte --tail
+```
+
+Se queda esperando. En otra ventana, llama a la URL. La linea `peticion <id> en entorno desarrollo` aparece en la primera ventana.
+
+`print` en una Lambda escribe en CloudWatch Logs. Es la unica forma de ver que pasa dentro: no hay consola ni fichero de log en disco.
+
+### 2. El arranque en frio
+
+Con `--tail` puesto, llama dos veces seguidas y compara las lineas `REPORT`.
+
+La primera trae `Init Duration`: AWS tuvo que levantar el contenedor. La segunda no, porque reutiliza el que ya esta caliente. Despues de unos minutos sin trafico lo apaga y la siguiente vuelve a arrancar en frio.
+
+`Init Duration` no se cobra. `Duration` si.
+
+### 3. Una ruta que no existe
+
+```powershell
+curl.exe -i https://<base>/v1/yo/inventada
+```
+
+Devuelve `404 Not Found`, y en los registros no aparece nada.
+
+API Gateway decide antes de invocar la funcion. Una peticion a una ruta que no existe no ejecuta codigo y no se cobra. Lo mismo hara con un token invalido a partir de la etapa 3.
+
+### 4. Que manda API Gateway a la funcion
+
+La ruta `/v1/yo/eco` devuelve el `event` entero.
+
+```powershell
+curl.exe https://<base>/v1/yo/eco
+```
+
+Mirar `requestContext.http.method`, `requestContext.http.path`, `headers` y `rawQueryString`. Probar tambien con parametros: `/v1/yo/eco?obra=001&fase=HP`, que salen en `queryStringParameters`.
+
+En la etapa 3, los datos del token validado apareceran en este mismo diccionario, bajo `requestContext.authorizer.jwt.claims`.
+
+### 5. Que ve el cliente cuando el codigo falla
+
+Anadir temporalmente en `src/eco/app.py`, como primera linea de la funcion:
+
+```python
+raise ValueError("prueba")
+```
+
+Desplegar y llamar. El cliente recibe `500 Internal Server Error` con un cuerpo vacio; el traceback completo esta en CloudWatch.
+
+Es lo correcto: el error no se le cuenta a quien llama. Por eso hace falta Sentry o las alarmas de CloudWatch, o los fallos pasan desapercibidos.
+
+Deshacer el cambio y volver a desplegar al terminar.
