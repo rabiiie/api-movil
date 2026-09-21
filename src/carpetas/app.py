@@ -1,38 +1,43 @@
 """Ruta GET /v1/yo/carpetas.
 
-Etapa 1: devuelve una lista fija. Todavia no hay token ni DynamoDB.
+Etapa 3: identifica a quien llama por el token. La lista sigue siendo fija;
+en la etapa 4 saldra de DynamoDB.
 """
 
 import json
-import os
+
+
+def quien_llama(event):
+    """Devuelve (oid, correo) del token validado por API Gateway.
+
+    La funcion no comprueba el token ni lo descodifica: cuando el codigo se
+    ejecuta, API Gateway ya verifico firma, emisor, audiencia y caducidad.
+    Si algo de eso fallara, esta funcion no se habria ejecutado.
+
+    Los claims llegan siempre como texto, incluso los numeros y las listas.
+    """
+    claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
+    return claims["oid"], claims.get("preferred_username", "")
 
 
 def lambda_handler(event, context):
-    """Punto de entrada. AWS llama a esta funcion por cada peticion.
+    oid, correo = quien_llama(event)
 
-    event: diccionario con la peticion. Para un HTTP API es el formato
-        "payload 2.0": event["requestContext"]["http"]["method"] y ["path"],
-        event["headers"], event["queryStringParameters"], event["body"].
-        A partir de la etapa 3, el token validado llega en
-        event["requestContext"]["authorizer"]["jwt"]["claims"].
-    context: datos de la ejecucion. context.aws_request_id identifica esta
-        llamada y sale en los registros de CloudWatch.
-    """
+    # El correo no se escribe en los registros: CloudWatch los guarda 30 dias
+    # y son datos personales. El oid identifica igual y no es un dato de
+    # contacto.
+    print(f"peticion {context.aws_request_id} de {oid}")
 
-    # print escribe en CloudWatch Logs. Es la forma de depurar una Lambda.
-    print(f"peticion {context.aws_request_id} en entorno {os.environ.get('ENTORNO')}")
-
-    # Etapa 4: aqui se consultara DynamoDB por el oid del tecnico.
+    # Etapa 4: consulta a DynamoDB por ese oid.
     carpetas = [
         {"ruta": "DGF/Mitte/Obra 001", "nombre": "Obra 001"},
         {"ruta": "DGF/Mitte/Obra 002", "nombre": "Obra 002"},
     ]
 
-    # La respuesta es un diccionario con estas tres claves. API Gateway lo
-    # traduce a una respuesta HTTP. El cuerpo tiene que ser texto, no un
-    # diccionario: de ahi json.dumps.
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json; charset=utf-8"},
-        "body": json.dumps({"carpetas": carpetas}, ensure_ascii=False),
+        "body": json.dumps(
+            {"usuario": correo, "oid": oid, "carpetas": carpetas}, ensure_ascii=False
+        ),
     }

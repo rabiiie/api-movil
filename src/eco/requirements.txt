@@ -1,2 +1,0 @@
-# Dependencias de esta funcion, una por linea. SAM las instala al empaquetar.
-# boto3 (el SDK de AWS) ya viene en el entorno de Lambda: no se pone aqui.

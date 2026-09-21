@@ -10,6 +10,18 @@ Description: >
 # AWS::Serverless::* a los recursos largos de CloudFormation.
 
 # Valores que se repiten en todas las funciones.
+# Valores que cambian entre entornos. Se sobrescriben al desplegar con
+# --parameter-overrides, sin tocar el fichero.
+Parameters:
+  TenantId:
+    Type: String
+    Default: 68c7939c-d7c1-4a03-86b4-827f15fcd06d
+    Description: Inquilino de Entra ID de INSYTE
+  ApiAppId:
+    Type: String
+    Default: 78d4dbf7-fb0e-4677-9c1e-95f046dddbff
+    Description: Id de aplicacion del registro "FotosObra API" en Entra ID
+
 Globals:
   Function:
     Runtime: python3.12
@@ -38,6 +50,27 @@ Resources:
       # El nombre de la etapa es el primer tramo de la ruta publica:
       # https://<id>.execute-api.eu-central-1.amazonaws.com/v1/yo/carpetas
       StageName: v1
+      Auth:
+        # Se aplica a todas las rutas. Una ruta abierta tendria que pedirlo
+        # explicitamente con Auth: Authorizer: NONE.
+        DefaultAuthorizer: EntraId
+        Authorizers:
+          EntraId:
+            # De donde sale el token: cabecera "Authorization: Bearer <token>".
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              # Quien lo emitio. API Gateway descarga de esta direccion las
+              # claves publicas de Microsoft y con ellas comprueba la firma.
+              # Tiene que coincidir letra por letra con el claim iss del token:
+              # esta forma con /v2.0 exige requestedAccessTokenVersion = 2 en
+              # el manifiesto del registro de la API.
+              issuer: !Sub "https://login.microsoftonline.com/${TenantId}/v2.0"
+              # A quien va dirigido, el claim aud. Se aceptan las dos formas
+              # porque Entra usa el GUID en los tokens v2 y el api://<guid> en
+              # los v1, y las dos identifican al mismo registro.
+              audience:
+                - !Ref ApiAppId
+                - !Sub "api://${ApiAppId}"
 
   # El codigo que responde a la ruta.
   CarpetasFunction:
@@ -55,21 +88,6 @@ Resources:
           Properties:
             ApiId: !Ref ApiMovil
             Path: /yo/carpetas
-            Method: GET
-
-  # Ruta de aprendizaje: devuelve la peticion entera.
-  # Se borra al terminar la etapa 3.
-  EcoFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: src/eco/
-      Handler: app.lambda_handler
-      Events:
-        Eco:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref ApiMovil
-            Path: /yo/eco
             Method: GET
 
 Outputs:

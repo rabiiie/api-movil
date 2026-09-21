@@ -94,7 +94,7 @@ sam delete --stack-name api-movil --region eu-central-1 --profile insyte
 | 0 | Aviso de presupuesto en AWS, instalar AWS CLI y SAM CLI | pendiente |
 | 1 | Este proyecto: una ruta que responde en local | hecha |
 | 2 | Desplegarlo en `eu-central-1` y llamarlo desde internet | hecha |
-| 3 | Registrar la API en Entra ID y exigir el token (autorizador JWT) | |
+| 3 | Registrar la API en Entra ID y exigir el token (autorizador JWT) | hecha |
 | 4 | DynamoDB: la tabla de carpetas por tecnico | |
 | 5 | AppFibra publica en esa tabla con un usuario IAM | |
 | 6 | FotosObra lee la API en vez de `carpetas.json` | |
@@ -138,19 +138,17 @@ API Gateway decide antes de invocar la funcion. Una peticion a una ruta que no e
 
 ### 4. Que manda API Gateway a la funcion
 
-La ruta `/v1/yo/eco` devuelve el `event` entero.
+La ruta `/v1/yo/eco` devolvia el `event` entero. Se uso para ver donde llegan
+los claims del token validado (`requestContext.authorizer.jwt.claims`) y se
+borro al terminar la etapa 3: devolver las cabeceras es devolver el token de
+quien llama.
 
-```powershell
-curl.exe https://<base>/v1/yo/eco
-```
-
-Mirar `requestContext.http.method`, `requestContext.http.path`, `headers` y `rawQueryString`. Probar tambien con parametros: `/v1/yo/eco?obra=001&fase=HP`, que salen en `queryStringParameters`.
-
-En la etapa 3, los datos del token validado apareceran en este mismo diccionario, bajo `requestContext.authorizer.jwt.claims`.
+Para ver lo mismo sin exponer nada, `herramientas/probar_token.py` imprime los
+claims leidos del token en el propio portatil.
 
 ### 5. Que ve el cliente cuando el codigo falla
 
-Anadir temporalmente en `src/eco/app.py`, como primera linea de la funcion:
+Anadir temporalmente en `src/carpetas/app.py`, como primera linea de la funcion:
 
 ```python
 raise ValueError("prueba")
@@ -161,3 +159,30 @@ Desplegar y llamar. El cliente recibe `500 Internal Server Error` con un cuerpo 
 Es lo correcto: el error no se le cuenta a quien llama. Por eso hace falta Sentry o las alarmas de CloudWatch, o los fallos pasan desapercibidos.
 
 Deshacer el cambio y volver a desplegar al terminar.
+
+## 8. Como probar la API
+
+```powershell
+pip install msal
+python herramientas/probar_token.py            # GET /v1/yo/carpetas
+python herramientas/probar_token.py /yo/tareas # otra ruta
+```
+
+Pide un token a Entra ID con el flujo de codigo de dispositivo, imprime los
+claims (nunca el token) y llama a la API con el.
+
+Sin token, cualquier ruta devuelve 401 y la Lambda no se ejecuta: el rechazo
+ocurre en API Gateway.
+
+Medido el 21.09.2026 con un token real:
+
+| Claim | Valor | Para que sirve |
+|---|---|---|
+| `iss` | `https://login.microsoftonline.com/<tid>/v2.0` | Exige `requestedAccessTokenVersion: 2` en el manifiesto |
+| `aud` | el GUID del registro, sin `api://` | Los tokens v2 usan el GUID; el `api://` es de los v1 |
+| `oid` | id del usuario en el inquilino | Con este se decide que devolver. Estable entre aplicaciones |
+| `sub` | distinto por aplicacion | No sirve para identificar entre sistemas |
+| `idp` | inquilino que autentico de verdad | Distinto del `tid` cuando la cuenta es invitada |
+| `roles` | ausente | Aqui llegara `Direccion` cuando exista la app de direccion |
+
+Los claims llegan siempre como texto, tambien `exp` e `iat`.
