@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  API movil de AppFibra (ADR-019).
+  Etapa 1: una sola ruta, sin seguridad todavia, para ejecutar en local.
+
+# CloudFormation es el inventario de lo que existe en AWS.
+# Este fichero lo describe entero: si se borra la pila, se borra todo lo de aqui.
+# "Transform: AWS::Serverless-2016-10-31" activa SAM, que traduce los tipos
+# AWS::Serverless::* a los recursos largos de CloudFormation.
+
+# Valores que se repiten en todas las funciones.
+Globals:
+  Function:
+    Runtime: python3.12
+    # arm64 (Graviton) cuesta un 20% menos que x86_64 por la misma ejecucion.
+    Architectures:
+      - arm64
+    # 128 MB es el minimo. El precio de Lambda se cobra por GB y segundo:
+    # mas memoria es mas caro por segundo, pero tambien mas CPU.
+    MemorySize: 128
+    # Segundos antes de cortar la ejecucion. Una lectura de DynamoDB tarda
+    # milisegundos; 5 segundos solo sirve de red de seguridad.
+    Timeout: 5
+    Environment:
+      Variables:
+        # Las variables de entorno llegan a Python en os.environ.
+        ENTORNO: desarrollo
+
+Resources:
+
+  # La URL publica. Un HTTP API es la version barata y sencilla de API Gateway:
+  # ~1 $ por millon de peticiones, sin coste fijo.
+  # En la etapa 3 se le añade aqui el autorizador JWT de Entra ID.
+  ApiMovil:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      # El nombre de la etapa es el primer tramo de la ruta publica:
+      # https://<id>.execute-api.eu-central-1.amazonaws.com/v1/yo/carpetas
+      StageName: v1
+
+  # El codigo que responde a la ruta.
+  CarpetasFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      # Carpeta que se empaqueta y se sube. Todo lo que haya dentro viaja.
+      CodeUri: src/carpetas/
+      # "fichero.funcion": app.py, funcion lambda_handler.
+      Handler: app.lambda_handler
+      Events:
+        # Cada Event es una razon por la que AWS ejecuta esta funcion.
+        # Aqui solo hay una: que llegue un GET a esa ruta.
+        Carpetas:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiMovil
+            Path: /yo/carpetas
+            Method: GET
+
+Outputs:
+  UrlDeLaApi:
+    Description: Ruta publica de la API una vez desplegada
+    Value: !Sub "https://${ApiMovil}.execute-api.${AWS::Region}.amazonaws.com/v1/yo/carpetas"

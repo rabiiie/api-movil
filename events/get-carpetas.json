@@ -1,0 +1,28 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /yo/carpetas",
+  "rawPath": "/v1/yo/carpetas",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "application/json",
+    "host": "localhost"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "local",
+    "domainName": "localhost",
+    "http": {
+      "method": "GET",
+      "path": "/v1/yo/carpetas",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "sam-local"
+    },
+    "requestId": "local-1",
+    "routeKey": "GET /yo/carpetas",
+    "stage": "v1",
+    "time": "21/Sep/2026:08:00:00 +0000",
+    "timeEpoch": 1790000000000
+  },
+  "isBase64Encoded": false
+}
