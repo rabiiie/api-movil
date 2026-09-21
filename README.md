@@ -95,7 +95,7 @@ sam delete --stack-name api-movil --region eu-central-1 --profile insyte
 | 1 | Este proyecto: una ruta que responde en local | hecha |
 | 2 | Desplegarlo en `eu-central-1` y llamarlo desde internet | hecha |
 | 3 | Registrar la API en Entra ID y exigir el token (autorizador JWT) | hecha |
-| 4 | DynamoDB: la tabla de carpetas por tecnico | |
+| 4 | DynamoDB: la tabla de carpetas por tecnico | hecha |
 | 5 | AppFibra publica en esa tabla con un usuario IAM | |
 | 6 | FotosObra lee la API en vez de `carpetas.json` | |
 | 7 | Registros, alarmas, limites de peticiones, despliegue reproducible | |
@@ -160,7 +160,41 @@ Es lo correcto: el error no se le cuenta a quien llama. Por eso hace falta Sentr
 
 Deshacer el cambio y volver a desplegar al terminar.
 
-## 8. Como probar la API
+## 8. La tabla
+
+`fotosobra-carpetas`, clave `persona`, una fila por tecnico:
+
+```json
+{
+  "persona": "1fb3462a-...",
+  "carpetas": [
+    {"ruta": "DGF/Mitte/Frankfurt/Obra 001", "nombre": "Obra 001",
+     "subcontrata": "Trenching 21", "proyecto": "DGF Mitte"}
+  ],
+  "publicado": "2026-09-21T11:15:44+00:00"
+}
+```
+
+La lista va dentro de la fila: siempre se leen juntas. La Lambda busca por
+`oid` y, si no hay fila, por `preferred_username` en minusculas, porque
+algunos permisos de OneDrive solo traen el correo.
+
+Una persona sin fila no es un error: devuelve `carpetas: []` y `publicado: null`.
+
+El rol de la Lambda solo tiene `dynamodb:GetItem` sobre el ARN de esta tabla.
+No puede hacer `Scan`, ni escribir, ni tocar otra tabla.
+
+Sin copias de seguridad a proposito: es una copia de datos que estan en
+AppFibra y que el trabajo de publicacion reconstruye. El cifrado en reposo va
+de serie.
+
+Escribir una fila de prueba, que es lo que hara AppFibra en la etapa 5:
+
+```powershell
+python herramientas/publicar_prueba.py <oid o correo>
+```
+
+## 9. Como probar la API
 
 ```powershell
 pip install msal

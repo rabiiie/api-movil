@@ -72,6 +72,22 @@ Resources:
                 - !Ref ApiAppId
                 - !Sub "api://${ApiAppId}"
 
+  # La tabla donde AppFibra deja las carpetas de cada tecnico.
+  TablaCarpetas:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fotosobra-carpetas
+      # Se paga por peticion, no por capacidad reservada. Sin trafico, cero.
+      BillingMode: PAY_PER_REQUEST
+      # Solo se declaran los atributos que forman la clave. El resto del
+      # contenido de cada fila es libre: DynamoDB no tiene esquema.
+      AttributeDefinitions:
+        - AttributeName: persona
+          AttributeType: S
+      KeySchema:
+        - AttributeName: persona
+          KeyType: HASH
+
   # El codigo que responde a la ruta.
   CarpetasFunction:
     Type: AWS::Serverless::Function
@@ -80,6 +96,17 @@ Resources:
       CodeUri: src/carpetas/
       # "fichero.funcion": app.py, funcion lambda_handler.
       Handler: app.lambda_handler
+      Environment:
+        Variables:
+          # El nombre real de la tabla, para no escribirlo en el codigo.
+          TABLA_CARPETAS: !Ref TablaCarpetas
+      # Permisos del rol de la funcion. Solo leer una fila, y solo de esta
+      # tabla. Ni Scan, ni escritura, ni las demas tablas de la cuenta.
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt TablaCarpetas.Arn
       Events:
         # Cada Event es una razon por la que AWS ejecuta esta funcion.
         # Aqui solo hay una: que llegue un GET a esa ruta.
