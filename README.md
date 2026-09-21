@@ -64,13 +64,36 @@ curl http://127.0.0.1:3000/yo/carpetas
 
 `sam local start-api` no aplica el `StageName`, por eso en local la ruta es `/yo/carpetas` y en AWS sera `/v1/yo/carpetas`.
 
-## 5. Etapas
+## 5. Desplegar
+
+La primera vez se hizo con `sam deploy --guided`, que dejo las respuestas en `samconfig.toml`. A partir de ahi:
+
+```powershell
+sam build
+sam deploy --profile insyte
+```
+
+Ver la URL de la pila desplegada:
+
+```powershell
+sam list stack-outputs --stack-name api-movil --region eu-central-1 --profile insyte
+```
+
+El identificador del API lo genera AWS al crearlo. Si se borra la pila y se vuelve a crear, la URL cambia: no se escribe en el codigo de las apps.
+
+Borrar todo lo desplegado:
+
+```powershell
+sam delete --stack-name api-movil --region eu-central-1 --profile insyte
+```
+
+## 6. Etapas
 
 | Etapa | Que se hace | Estado |
 |---|---|---|
 | 0 | Aviso de presupuesto en AWS, instalar AWS CLI y SAM CLI | pendiente |
 | 1 | Este proyecto: una ruta que responde en local | hecha |
-| 2 | Desplegarlo en `eu-central-1` y llamarlo desde internet | |
+| 2 | Desplegarlo en `eu-central-1` y llamarlo desde internet | hecha |
 | 3 | Registrar la API en Entra ID y exigir el token (autorizador JWT) | |
 | 4 | DynamoDB: la tabla de carpetas por tecnico | |
 | 5 | AppFibra publica en esa tabla con un usuario IAM | |

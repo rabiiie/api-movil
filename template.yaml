@@ -58,6 +58,12 @@ Resources:
             Method: GET
 
 Outputs:
-  UrlDeLaApi:
-    Description: Ruta publica de la API una vez desplegada
+  # La base es lo que se configura en la app. Las rutas se le pegan detras.
+  # El identificador del API lo genera AWS al crearlo: si se borra la pila y
+  # se vuelve a crear, cambia. Por eso no se escribe en el codigo de la app.
+  UrlBase:
+    Description: Base de la API. Las rutas cuelgan de aqui
+    Value: !Sub "https://${ApiMovil}.execute-api.${AWS::Region}.amazonaws.com/v1"
+  EjemploDeRuta:
+    Description: Una ruta concreta, para comprobar que responde
     Value: !Sub "https://${ApiMovil}.execute-api.${AWS::Region}.amazonaws.com/v1/yo/carpetas"
