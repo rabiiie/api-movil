@@ -7,7 +7,8 @@ s3_prefix = "api-movil"
 region = "eu-central-1"
 profile = "insyte"
 confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
+tags = "proyecto=fotosobra-api"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 image_repositories = []
 
 [default.global.parameters]

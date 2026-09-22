@@ -98,11 +98,30 @@ sam delete --stack-name api-movil --region eu-central-1 --profile insyte
 | 4 | DynamoDB: la tabla de carpetas por tecnico | hecha |
 | 5 | AppFibra publica en esa tabla con un usuario IAM | |
 | 6 | FotosObra lee la API en vez de `carpetas.json` | |
-| 7 | Registros, alarmas, limites de peticiones, despliegue reproducible | |
+| 7 | Registros, alarmas, limites de peticiones, despliegue reproducible | hecha |
 
 PhotoDoc usa la misma cuenta de AWS pero trabaja en `us-west-2`. Esta API va en `eu-central-1` (Frankfurt): los datos de los tecnicos no salen de la UE.
 
-## 7. Ejercicios
+## 7. Controles de produccion
+
+| Control | Valor | Por que |
+|---|---|---|
+| Limite de peticiones | 20 por segundo, rafaga 50 | Techo para toda la API. Por encima responde 429 |
+| Retencion de registros | 30 dias | Los registros llevan el `oid` del tecnico: son datos personales |
+| Alarma `api-movil-errores-lambda` | 1 error en 5 min | Con este volumen un error no es ruido |
+| Alarma `api-movil-5xx` | 1 en 5 min | Algo roto entre API Gateway y la funcion |
+| Alarma `api-movil-trafico` | 2000 peticiones en 5 min | Un bucle o alguien probando, no uso normal |
+| Etiqueta | `proyecto=fotosobra-api` | Para un presupuesto de AWS filtrado por esta API |
+
+Las alarmas avisan al tema SNS `api-movil-avisos`. El correo tiene que **confirmar la suscripcion** pulsando el enlace que manda AWS la primera vez; hasta entonces no llega nada.
+
+Cambiar el destinatario sin tocar el fichero:
+
+```powershell
+sam deploy --profile insyte --parameter-overrides CorreoAvisos=otro@insytedeutschland.de
+```
+
+## 8. Ejercicios
 
 Cinco pruebas sobre lo desplegado. Cada una enseña una cosa y ninguna cuesta dinero.
 
@@ -160,7 +179,7 @@ Es lo correcto: el error no se le cuenta a quien llama. Por eso hace falta Sentr
 
 Deshacer el cambio y volver a desplegar al terminar.
 
-## 8. La tabla
+## 9. La tabla
 
 `fotosobra-carpetas`, clave `persona`, una fila por tecnico:
 
@@ -194,7 +213,7 @@ Escribir una fila de prueba, que es lo que hara AppFibra en la etapa 5:
 python herramientas/publicar_prueba.py <oid o correo>
 ```
 
-## 9. Como probar la API
+## 10. Como probar la API
 
 ```powershell
 pip install msal

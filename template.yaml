@@ -21,6 +21,13 @@ Parameters:
     Type: String
     Default: 78d4dbf7-fb0e-4677-9c1e-95f046dddbff
     Description: Id de aplicacion del registro "FotosObra API" en Entra ID
+  CorreoAvisos:
+    Type: String
+    Default: rsamadi@insytesoluciones.es
+    Description: "Donde llegan las alarmas. Vacio: se crea el tema pero sin destinatario"
+
+Conditions:
+  HayCorreo: !Not [!Equals [!Ref CorreoAvisos, ""]]
 
 Globals:
   Function:
@@ -50,6 +57,12 @@ Resources:
       # El nombre de la etapa es el primer tramo de la ruta publica:
       # https://<id>.execute-api.eu-central-1.amazonaws.com/v1/yo/carpetas
       StageName: v1
+      # Techo de peticiones para toda la API. No es por usuario: es el total.
+      # Una app que se vuelva loca, o alguien probando, no puede disparar la
+      # factura ni tumbar el servicio: a partir de aqui la API responde 429.
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 20
+        ThrottlingBurstLimit: 50
       Auth:
         # Se aplica a todas las rutas. Una ruta abierta tendria que pedirlo
         # explicitamente con Auth: Authorizer: NONE.
@@ -88,6 +101,27 @@ Resources:
         - AttributeName: persona
           KeyType: HASH
 
+  # La identidad con la que AppFibra escribe desde el servidor de la oficina.
+  # Solo escribe y borra filas de esta tabla: no puede leerlas, ni listar la
+  # tabla, ni tocar nada mas de la cuenta.
+  # Las claves de acceso no se crean aqui: se crean a mano en la consola para
+  # que el secreto no acabe en la plantilla ni en CloudFormation.
+  UsuarioPublicador:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: appfibra-fotosobra-publicador
+      Policies:
+        - PolicyName: escribir-carpetas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt TablaCarpetas.Arn
+
   # El codigo que responde a la ruta.
   CarpetasFunction:
     Type: AWS::Serverless::Function
@@ -100,6 +134,11 @@ Resources:
         Variables:
           # El nombre real de la tabla, para no escribirlo en el codigo.
           TABLA_CARPETAS: !Ref TablaCarpetas
+      # Sin esto, Lambda crea su propio grupo de registros y lo guarda para
+      # siempre. Los registros llevan el oid del tecnico: son datos personales
+      # y la retencion acordada con el delegado es de 30 dias.
+      LoggingConfig:
+        LogGroup: !Ref RegistroCarpetas
       # Permisos del rol de la funcion. Solo leer una fila, y solo de esta
       # tabla. Ni Scan, ni escritura, ni las demas tablas de la cuenta.
       Policies:
@@ -116,6 +155,89 @@ Resources:
             ApiId: !Ref ApiMovil
             Path: /yo/carpetas
             Method: GET
+
+  RegistroCarpetas:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/api-movil-carpetas
+      RetentionInDays: 30
+
+  # Donde llegan las alarmas. El correo tiene que confirmar la suscripcion
+  # pulsando el enlace que manda AWS: hasta entonces no recibe nada.
+  Avisos:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: api-movil-avisos
+
+  SuscripcionAvisos:
+    Type: AWS::SNS::Subscription
+    Condition: HayCorreo
+    Properties:
+      TopicArn: !Ref Avisos
+      Protocol: email
+      Endpoint: !Ref CorreoAvisos
+
+  # El codigo ha fallado. Una sola vez ya es motivo de mirar: con este
+  # volumen, los errores no son ruido de fondo.
+  AlarmaErrores:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: api-movil-errores-lambda
+      AlarmDescription: La funcion de carpetas ha fallado
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CarpetasFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref Avisos
+
+  # La API devuelve 5xx: algo esta roto entre API Gateway y la funcion.
+  AlarmaFallosApi:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: api-movil-5xx
+      AlarmDescription: La API responde con errores de servidor
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref ApiMovil
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref Avisos
+
+  # Trafico muy por encima de lo normal. Con unos cientos de tecnicos, 2000
+  # peticiones en cinco minutos no es uso: es un bucle o alguien probando.
+  AlarmaTrafico:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: api-movil-trafico
+      AlarmDescription: Peticiones muy por encima de lo esperado
+      Namespace: AWS/ApiGateway
+      MetricName: Count
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref ApiMovil
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 2000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref Avisos
 
 Outputs:
   # La base es lo que se configura en la app. Las rutas se le pegan detras.
