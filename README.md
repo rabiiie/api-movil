@@ -1,6 +1,6 @@
 # api-movil
 
-API en AWS entre AppFibra y las apps Android (FotosObra y, mas adelante, la app de direccion).
+API en AWS entre AppFibra y las apps Android: FotosObra y la app de KPI ("direccion", la vista global de proyectos).
 
 La decision y el porque estan en `docs/adr/ADR-019-api-movil-en-aws.md` del repositorio de AppFibra, con el diagrama en `docs/adr/diagramas/`.
 
@@ -21,6 +21,8 @@ No hay ningun servidor encendido. Si nadie llama a la API, la factura es cero.
 | `template.yaml` | Describe la infraestructura entera: la URL, la funcion y la ruta. Es el fichero importante |
 | `src/carpetas/app.py` | El codigo que responde a `GET /v1/yo/carpetas` |
 | `src/carpetas/requirements.txt` | Librerias de esa funcion |
+| `src/direccion/app.py` | Las rutas `/v1/direccion/...` de la app de KPI, con la comprobacion de acceso |
+| `herramientas/publicar_direccion_prueba.py` | Da acceso a una persona y escribe cifras de prueba, sin AppFibra |
 | `events/get-carpetas.json` | Una peticion de ejemplo, para invocar la funcion en local sin levantar nada |
 | `samconfig.toml` | Lo crea `sam deploy --guided`: region, nombre de la pila |
 
@@ -105,6 +107,7 @@ sam delete --stack-name api-movil --region eu-central-1 --profile insyte
 | 5 | AppFibra publica en esa tabla con un usuario IAM | |
 | 6 | FotosObra lee la API en vez de `carpetas.json` | |
 | 7 | Registros, alarmas, limites de peticiones, despliegue reproducible | hecha |
+| D1c | App de KPI: tablas `direccion-resumen` y `direccion-acceso`, rutas `/v1/direccion/...` | hecha |
 
 PhotoDoc usa la misma cuenta de AWS pero trabaja en `us-west-2`. Esta API va en `eu-central-1` (Frankfurt): los datos de los tecnicos no salen de la UE.
 
@@ -242,6 +245,41 @@ Medido el 21.09.2026 con un token real:
 | `oid` | id del usuario en el inquilino | Con este se decide que devolver. Estable entre aplicaciones |
 | `sub` | distinto por aplicacion | No sirve para identificar entre sistemas |
 | `idp` | inquilino que autentico de verdad | Distinto del `tid` cuando la cuenta es invitada |
-| `roles` | ausente | Aqui llegara `Direccion` cuando exista la app de direccion |
+| `roles` | ausente | No se usa: el acceso a la app de KPI lo decide AppFibra en `direccion-acceso` |
 
 Los claims llegan siempre como texto, tambien `exp` e `iat`.
+
+## 11. La app de KPI (etapa D1c)
+
+Tres rutas, una funcion:
+
+| Ruta | Devuelve |
+|---|---|
+| `GET /v1/direccion/yo` | Los clientes que puede ver quien llama y, de cada uno, `*` o su lista de ciudades o proyectos |
+| `GET /v1/direccion/avance/{cliente}` | El item del cliente entero. Solo con `*` en ese cliente |
+| `GET /v1/direccion/avance/{cliente}/{ambito}` | Una ciudad o un proyecto. Con `*` o si esta en su lista |
+
+**El token no basta.** El autorizador acepta cualquier token del tenant de
+INSYTE, y ese token lo tienen tambien los tecnicos de las subcontratas que usan
+FotosObra. Por eso la funcion busca a la persona en `direccion-acceso` en cada
+peticion, antes de leer ninguna cifra, y sin fila responde 403. Quien escribe
+esa tabla es AppFibra, con sus permisos de Keycloak: quitar el acceso alli lo
+quita aqui en la siguiente publicacion.
+
+**El total de un cliente es informacion.** Quien solo tiene algunas ciudades
+no puede pedir el item del cliente: suma tambien las ciudades que no son suyas.
+La app suma las suyas en el movil.
+
+Probar despues de desplegar:
+
+```powershell
+python herramientas/probar_token.py /direccion/yo                # 403: aun no tienes fila
+python herramientas/publicar_direccion_prueba.py <tu oid>
+python herramientas/probar_token.py /direccion/yo                # 200
+python herramientas/probar_token.py /direccion/avance/UGG        # 200
+python herramientas/probar_token.py /direccion/avance/DGF/P1     # 200
+python herramientas/probar_token.py /direccion/avance/DGF        # 403: solo tienes P1
+python herramientas/probar_token.py /direccion/avance/GFPLUS     # 403
+python herramientas/publicar_direccion_prueba.py <tu oid> --quitar
+python herramientas/probar_token.py /direccion/yo                # 403 otra vez
+```

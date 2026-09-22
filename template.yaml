@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  API movil de AppFibra (ADR-019). GET /v1/yo/carpetas, con token de Entra ID.
-  AppFibra publica en DynamoDB; la Lambda solo lee.
+  API movil de AppFibra (ADR-019). GET /v1/yo/carpetas para FotosObra y
+  GET /v1/direccion/... para la app de KPI, con token de Entra ID.
+  AppFibra publica en DynamoDB; las Lambda solo leen.
 
 # CloudFormation es el inventario de lo que existe en AWS.
 # Este fichero lo describe entero: si se borra la pila, se borra todo lo de aqui.
@@ -101,6 +102,40 @@ Resources:
         - AttributeName: persona
           KeyType: HASH
 
+  # Las cifras de produccion para la app de KPI. Una fila por "vista":
+  # avance#UGG es el cliente entero, avance#UGG#KOELN una ciudad. AppFibra
+  # la reescribe entera una vez al dia, al terminar su refresco de las 08:00.
+  # Cada fila guarda el JSON en el atributo "datos", que la Lambda devuelve
+  # tal cual: el formato lo decide AppFibra, no esta plantilla.
+  TablaDireccionResumen:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: direccion-resumen
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: vista
+          AttributeType: S
+      KeySchema:
+        - AttributeName: vista
+          KeyType: HASH
+
+  # Quien puede usar la app de KPI y que ve. Lo decide AppFibra con sus
+  # permisos y lo publica aqui: una fila por persona (oid o correo) con los
+  # clientes y, de cada uno, "*" (todo) o la lista de ciudades o proyectos.
+  # El token de Entra lo tiene cualquier persona del tenant, tambien los
+  # tecnicos de las subcontratas: sin fila en esta tabla, la API responde 403.
+  TablaDireccionAcceso:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: direccion-acceso
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: persona
+          AttributeType: S
+      KeySchema:
+        - AttributeName: persona
+          KeyType: HASH
+
   # La identidad con la que AppFibra escribe desde el servidor de la oficina.
   # Solo escribe y borra filas de esta tabla: no puede leerlas, ni listar la
   # tabla, ni tocar nada mas de la cuenta.
@@ -121,6 +156,20 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:BatchWriteItem
                 Resource: !GetAtt TablaCarpetas.Arn
+        # Una politica aparte para la app de KPI. Las mismas claves de acceso
+        # sirven para las tres tablas: AppFibra no necesita un segundo secreto.
+        - PolicyName: escribir-direccion
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt TablaDireccionResumen.Arn
+                  - !GetAtt TablaDireccionAcceso.Arn
 
   # El codigo que responde a la ruta.
   CarpetasFunction:
@@ -162,6 +211,59 @@ Resources:
       LogGroupName: /aws/lambda/api-movil-carpetas
       RetentionInDays: 30
 
+  # Las rutas de la app de KPI. Una sola funcion para las tres: comparten la
+  # comprobacion de acceso, que es la parte que importa.
+  DireccionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/direccion/
+      Handler: app.lambda_handler
+      # El item de UGG ocupa unos 130 KB. Con 128 MB la funcion tarda mas en
+      # leerlo y convertirlo; con 256 MB tiene el doble de CPU.
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLA_RESUMEN: !Ref TablaDireccionResumen
+          TABLA_ACCESO: !Ref TablaDireccionAcceso
+      LoggingConfig:
+        LogGroup: !Ref RegistroDireccion
+      # Solo leer filas sueltas de sus dos tablas.
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource:
+                - !GetAtt TablaDireccionResumen.Arn
+                - !GetAtt TablaDireccionAcceso.Arn
+      Events:
+        # Que puede ver quien llama: clientes y ciudades o proyectos.
+        Yo:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiMovil
+            Path: /direccion/yo
+            Method: GET
+        # {cliente} es un parametro de ruta: API Gateway acepta cualquier
+        # valor en ese tramo y se lo pasa a la funcion en pathParameters.
+        AvanceCliente:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiMovil
+            Path: /direccion/avance/{cliente}
+            Method: GET
+        AvanceAmbito:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiMovil
+            Path: /direccion/avance/{cliente}/{ambito}
+            Method: GET
+
+  RegistroDireccion:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/api-movil-direccion
+      RetentionInDays: 30
+
   # Donde llegan las alarmas. El correo tiene que confirmar la suscripcion
   # pulsando el enlace que manda AWS: hasta entonces no recibe nada.
   Avisos:
@@ -189,6 +291,25 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref CarpetasFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref Avisos
+
+  AlarmaErroresDireccion:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: api-movil-errores-direccion
+      AlarmDescription: La funcion de la app de KPI ha fallado
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DireccionFunction
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
