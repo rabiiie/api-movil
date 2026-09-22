@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  API movil de AppFibra (ADR-019).
-  Etapa 1: una sola ruta, sin seguridad todavia, para ejecutar en local.
+  API movil de AppFibra (ADR-019). GET /v1/yo/carpetas, con token de Entra ID.
+  AppFibra publica en DynamoDB; la Lambda solo lee.
 
 # CloudFormation es el inventario de lo que existe en AWS.
 # Este fichero lo describe entero: si se borra la pila, se borra todo lo de aqui.

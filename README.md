@@ -81,6 +81,12 @@ sam list stack-outputs --stack-name api-movil --region eu-central-1 --profile in
 
 El identificador del API lo genera AWS al crearlo. Si se borra la pila y se vuelve a crear, la URL cambia: no se escribe en el codigo de las apps.
 
+La pila tiene **proteccion de terminacion activada**: `sam delete` y el boton de borrar de la consola fallan hasta quitarla a proposito.
+
+```powershell
+aws cloudformation update-termination-protection --stack-name api-movil --no-enable-termination-protection --region eu-central-1 --profile insyte
+```
+
 Borrar todo lo desplegado:
 
 ```powershell
