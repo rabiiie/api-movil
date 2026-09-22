@@ -14,17 +14,33 @@ import boto3
 TABLA = boto3.resource("dynamodb").Table(os.environ["TABLA_CARPETAS"])
 
 
-def quien_llama(event):
-    """Devuelve (oid, correo) del token validado por API Gateway.
+def claves(event):
+    """Claves con las que buscar la fila, de la mas fiable a la menos.
 
-    La funcion no comprueba el token ni lo descodifica: cuando el codigo se
-    ejecuta, API Gateway ya verifico firma, emisor, audiencia y caducidad.
-    Si algo de eso fallara, esta funcion no se habria ejecutado.
+    AppFibra publica por el id de Entra cuando el permiso de OneDrive lo trae,
+    y por el correo en minusculas cuando no. Medido el 22.09.2026: de 273
+    personas, 140 solo tienen correo, asi que esta lista no es un caso raro.
 
-    Los claims llegan siempre como texto, incluso los numeros y las listas.
+    Un invitado de otro dominio no siempre trae su correo tal cual. Entra ID
+    usa la forma "ana_subco.de#EXT#@insyte.onmicrosoft.com", que no coincide
+    con el "ana@subco.de" que ve OneDrive. Se deshace esa forma: lo de delante
+    del #EXT# con el ultimo guion bajo convertido en arroba.
     """
-    claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
-    return claims["oid"], claims.get("preferred_username", "")
+    c = event["requestContext"]["authorizer"]["jwt"]["claims"]
+    candidatas = [c["oid"]]
+
+    for clave in ("preferred_username", "email", "upn", "unique_name"):
+        valor = (c.get(clave) or "").strip().lower()
+        if not valor:
+            continue
+        candidatas.append(valor)
+        if "#ext#" in valor:
+            local = valor.split("#ext#")[0]
+            if "_" in local:
+                candidatas.append("@".join(local.rsplit("_", 1)))
+
+    # Sin duplicados y conservando el orden.
+    return list(dict.fromkeys(candidatas))
 
 
 def leer(persona):
@@ -33,23 +49,29 @@ def leer(persona):
 
 
 def lambda_handler(event, context):
-    oid, correo = quien_llama(event)
+    posibles = claves(event)
+    oid = posibles[0]
 
-    # El correo no se escribe en los registros: CloudWatch los guarda 30 dias
-    # y son datos personales. El oid identifica igual y no es un dato de
+    # Los correos no se escriben en los registros: CloudWatch los guarda 30
+    # dias y son datos personales. El oid identifica igual y no es un dato de
     # contacto.
     print(f"peticion {context.aws_request_id} de {oid}")
 
-    # AppFibra publica por oid cuando OneDrive le da el id de Entra del
-    # usuario. En los permisos que solo traen correo, publica por correo.
-    fila = leer(oid)
-    if fila is None and correo:
-        fila = leer(correo.lower())
+    fila = None
+    for i, clave in enumerate(posibles):
+        fila = leer(clave)
+        if fila is not None:
+            # Con que clave se encontro, sin decir cual: 0 es el oid y el
+            # resto son formas del correo. Sirve para saber cuanta gente
+            # depende del correo sin registrar el correo.
+            print(f"fila encontrada por la clave {i} de {len(posibles)}")
+            break
 
     if fila is None:
-        # No es un error: es un tecnico sin carpetas asignadas todavia, o
-        # que AppFibra aun no ha publicado. La app muestra la lista vacia.
-        print(f"sin fila publicada para {oid}")
+        # No es un error: es un tecnico sin carpetas asignadas todavia, o que
+        # AppFibra aun no ha publicado, o cuyo correo no coincide. La app
+        # muestra la lista vacia.
+        print(f"sin fila para {oid}, probadas {len(posibles)} claves")
         return respuesta({"carpetas": [], "publicado": None})
 
     return respuesta(
