@@ -21,7 +21,7 @@ Parameters:
   ApiAppId:
     Type: String
     Default: 78d4dbf7-fb0e-4677-9c1e-95f046dddbff
-    Description: Id de aplicacion del registro "FotosObra API" en Entra ID
+    Description: Id de aplicacion del registro "Insyte API móvil" en Entra ID
   CorreoAvisos:
     Type: String
     Default: rsamadi@insytesoluciones.es
