@@ -13,6 +13,21 @@ import boto3
 # llamada sea mucho mas rapida que la primera.
 TABLA = boto3.resource("dynamodb").Table(os.environ["TABLA_CARPETAS"])
 
+# La version mas antigua de la app que acepta esta ruta, en versionCode de
+# Android. La app la manda en cada peticion en la cabecera X-App-Version.
+# Con 0 no se comprueba nada.
+VERSION_MINIMA = int(os.environ.get("VERSION_MINIMA", "0"))
+
+
+def version_de_la_app(event):
+    """El versionCode de la cabecera X-App-Version, o 0 si falta o no es un numero.
+
+    API Gateway (HTTP API) entrega las cabeceras en minusculas.
+    """
+    valor = (event.get("headers") or {}).get("x-app-version", "").strip()
+    return int(valor) if valor.isdigit() else 0
+
+
 
 def claves(event):
     """Claves con las que buscar la fila, de la mas fiable a la menos.
@@ -57,6 +72,13 @@ def lambda_handler(event, context):
     # contacto.
     print(f"peticion {context.aws_request_id} de {oid}")
 
+    # Una app vieja no llega a leer nada. 426 (Upgrade Required) es la forma
+    # de decirle que tiene que actualizarse; "minima" le dice a cual.
+    version = version_de_la_app(event)
+    if version < VERSION_MINIMA:
+        print(f"version {version} por debajo de la minima {VERSION_MINIMA}")
+        return respuesta(426, {"error": "version_antigua", "minima": VERSION_MINIMA})
+
     fila = None
     for i, clave in enumerate(posibles):
         fila = leer(clave)
@@ -72,9 +94,10 @@ def lambda_handler(event, context):
         # AppFibra aun no ha publicado, o cuyo correo no coincide. La app
         # muestra la lista vacia.
         print(f"sin fila para {oid}, probadas {len(posibles)} claves")
-        return respuesta({"carpetas": [], "publicado": None})
+        return respuesta(200, {"carpetas": [], "publicado": None})
 
     return respuesta(
+        200,
         {
             "carpetas": fila.get("carpetas", []),
             "publicado": fila.get("publicado"),
@@ -82,9 +105,9 @@ def lambda_handler(event, context):
     )
 
 
-def respuesta(cuerpo):
+def respuesta(estado, cuerpo):
     return {
-        "statusCode": 200,
+        "statusCode": estado,
         "headers": {"Content-Type": "application/json; charset=utf-8"},
         "body": json.dumps(cuerpo, ensure_ascii=False, default=str),
     }

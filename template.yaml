@@ -22,6 +22,19 @@ Parameters:
     Type: String
     Default: 78d4dbf7-fb0e-4677-9c1e-95f046dddbff
     Description: Id de aplicacion del registro "Insyte API móvil" en Entra ID
+  # La version mas antigua de cada app que acepta la API, en versionCode de
+  # Android. Por debajo, la ruta responde 426 y la app pide actualizar.
+  # 0 desactiva la comprobacion. Se sube al publicar una version que deja
+  # atras a las anteriores:
+  #   sam deploy --parameter-overrides FotosObraVersionMinima=10
+  FotosObraVersionMinima:
+    Type: Number
+    Default: 0
+    MinValue: 0
+  KpiVersionMinima:
+    Type: Number
+    Default: 0
+    MinValue: 0
   CorreoAvisos:
     Type: String
     Default: rsamadi@insytesoluciones.es
@@ -183,6 +196,7 @@ Resources:
         Variables:
           # El nombre real de la tabla, para no escribirlo en el codigo.
           TABLA_CARPETAS: !Ref TablaCarpetas
+          VERSION_MINIMA: !Ref FotosObraVersionMinima
       # Sin esto, Lambda crea su propio grupo de registros y lo guarda para
       # siempre. Los registros llevan el oid del tecnico: son datos personales
       # y la retencion acordada con el delegado es de 30 dias.
@@ -225,6 +239,7 @@ Resources:
         Variables:
           TABLA_RESUMEN: !Ref TablaDireccionResumen
           TABLA_ACCESO: !Ref TablaDireccionAcceso
+          VERSION_MINIMA: !Ref KpiVersionMinima
       LoggingConfig:
         LogGroup: !Ref RegistroDireccion
       # Solo leer filas sueltas de sus dos tablas.

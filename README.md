@@ -121,6 +121,7 @@ PhotoDoc usa la misma cuenta de AWS pero trabaja en `us-west-2`. Esta API va en 
 | Alarma `api-movil-5xx` | 1 en 5 min | Algo roto entre API Gateway y la funcion |
 | Alarma `api-movil-trafico` | 2000 peticiones en 5 min | Un bucle o alguien probando, no uso normal |
 | Etiqueta | `proyecto=fotosobra-api` | Para un presupuesto de AWS filtrado por esta API |
+| Version minima de la app | `FotosObraVersionMinima`, `KpiVersionMinima` (0 = sin comprobar) | La app manda su `versionCode` en `X-App-Version`; por debajo de la minima la ruta responde 426 sin leer nada |
 
 Las alarmas avisan al tema SNS `api-movil-avisos`. El correo tiene que **confirmar la suscripcion** pulsando el enlace que manda AWS la primera vez; hasta entonces no llega nada.
 
@@ -128,6 +129,12 @@ Cambiar el destinatario sin tocar el fichero:
 
 ```powershell
 sam deploy --profile insyte --parameter-overrides CorreoAvisos=otro@insytedeutschland.de
+```
+
+Subir la version minima de FotosObra cuando una version nueva deja atras a las anteriores (un cambio de la API, un fallo de seguridad). Las apps por debajo reciben `426 {"error": "version_antigua", "minima": N}` y piden actualizar:
+
+```powershell
+sam deploy --profile insyte --parameter-overrides FotosObraVersionMinima=10
 ```
 
 ## 8. Ejercicios
