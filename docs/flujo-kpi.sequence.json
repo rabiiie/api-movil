@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Insyte KPI · del login a las cifras",
+    "output": "flujo-kpi.html",
+    "viewBox": [
+      1060,
+      600
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "emphasis": {
+          "label": "petición"
+        },
+        "return": {
+          "label": "respuesta"
+        },
+        "security": {
+          "label": "comprobación"
+        },
+        "dashed": {
+          "label": "cada mañana"
+        },
+        "default": {
+          "label": "consulta"
+        }
+      }
+    },
+    "views": [
+      {
+        "id": "login",
+        "label": "Iniciar sesión",
+        "focus": [
+          "app",
+          "entra",
+          "registros"
+        ],
+        "note": "Microsoft solo da el pase si la app está registrada, es la app real y tiene concedido Fotos.Acceso."
+      },
+      {
+        "id": "api",
+        "label": "Pedir los datos",
+        "focus": [
+          "app",
+          "gateway",
+          "lambda",
+          "dynamo"
+        ],
+        "note": "API Gateway comprueba el pase; la Lambda busca a la persona en la lista que publica AppFibra."
+      },
+      {
+        "id": "preparar",
+        "label": "Preparar las cifras",
+        "focus": [
+          "appfibra",
+          "dynamo"
+        ],
+        "note": "AppFibra publica cada mañana las cifras y quién puede verlas."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "App Insyte KPI",
+      "sublabel": "móvil del directivo"
+    },
+    {
+      "id": "entra",
+      "type": "security",
+      "label": "Entra ID",
+      "sublabel": "login de Microsoft"
+    },
+    {
+      "id": "registros",
+      "type": "security",
+      "label": "Registros",
+      "sublabel": "de Entra"
+    },
+    {
+      "id": "gateway",
+      "type": "security",
+      "label": "API Gateway",
+      "sublabel": "el portero"
+    },
+    {
+      "id": "lambda",
+      "type": "backend",
+      "label": "Lambda dirección",
+      "sublabel": "decide qué ve"
+    },
+    {
+      "id": "dynamo",
+      "type": "database",
+      "label": "DynamoDB",
+      "sublabel": "cifras y acceso"
+    },
+    {
+      "id": "appfibra",
+      "type": "backend",
+      "label": "AppFibra",
+      "sublabel": "servidor"
+    }
+  ],
+  "segments": [
+    {
+      "from": 200,
+      "to": 314,
+      "label": "Iniciar sesión"
+    },
+    {
+      "from": 336,
+      "to": 450,
+      "label": "Qué puede ver"
+    },
+    {
+      "from": 472,
+      "to": 530,
+      "label": "Ver KPI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "publica",
+      "from": "appfibra",
+      "to": "dynamo",
+      "y": 164,
+      "label": "08:00 · cifras y lista de acceso",
+      "variant": "dashed"
+    },
+    {
+      "id": "login",
+      "from": "app",
+      "to": "entra",
+      "y": 216,
+      "label": "login: soy KPI, pase para la API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mira-registro",
+      "from": "entra",
+      "to": "registros",
+      "y": 244,
+      "label": "¿app registrada, firma y permiso?",
+      "variant": "security"
+    },
+    {
+      "id": "concedido",
+      "from": "registros",
+      "to": "entra",
+      "y": 272,
+      "label": "Fotos.Acceso concedido",
+      "variant": "return"
+    },
+    {
+      "id": "token",
+      "from": "entra",
+      "to": "app",
+      "y": 300,
+      "label": "token firmado · aud = API móvil",
+      "variant": "return"
+    },
+    {
+      "id": "yo",
+      "from": "app",
+      "to": "gateway",
+      "y": 352,
+      "label": "GET /direccion/yo + token",
+      "variant": "emphasis"
+    },
+    {
+      "id": "verifica",
+      "from": "gateway",
+      "to": "lambda",
+      "y": 380,
+      "label": "firma, emisor y aud correctos",
+      "variant": "security"
+    },
+    {
+      "id": "busca",
+      "from": "lambda",
+      "to": "dynamo",
+      "y": 408,
+      "label": "fila de su oid: clientes y ámbitos",
+      "variant": "default"
+    },
+    {
+      "id": "alcance",
+      "from": "lambda",
+      "to": "app",
+      "y": 436,
+      "label": "qué puede ver",
+      "variant": "return"
+    },
+    {
+      "id": "avance",
+      "from": "app",
+      "to": "gateway",
+      "y": 488,
+      "label": "GET avance/UGG + token",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cifras",
+      "from": "gateway",
+      "to": "app",
+      "y": 516,
+      "label": "mismas comprobaciones · cifras",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "dynamo",
+      "from": 159,
+      "to": 172,
+      "type": "database"
+    },
+    {
+      "participant": "entra",
+      "from": 211,
+      "to": 306,
+      "type": "security"
+    },
+    {
+      "participant": "registros",
+      "from": 239,
+      "to": 278,
+      "type": "security"
+    },
+    {
+      "participant": "gateway",
+      "from": 347,
+      "to": 386,
+      "type": "security"
+    },
+    {
+      "participant": "lambda",
+      "from": 375,
+      "to": 442,
+      "type": "backend"
+    },
+    {
+      "participant": "dynamo",
+      "from": 403,
+      "to": 418,
+      "type": "database"
+    },
+    {
+      "participant": "gateway",
+      "from": 483,
+      "to": 522,
+      "type": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Soluciones KPI (Android)",
+      "items": [
+        "Quién es la app: su id va dentro",
+        "Huella de firma: una copia no vale",
+        "Puede pedir Fotos.Acceso (admin)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Soluciones API móvil",
+      "items": [
+        "La puerta: define Fotos.Acceso",
+        "Su id es el aud del token",
+        "API Gateway solo acepta ese aud"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Un registro por programa",
+      "items": [
+        "Entra dice quién; AppFibra, qué ve",
+        "FotosObra y servidor, cada uno el suyo",
+        "Cada uno solo pide lo que necesita"
+      ]
+    }
+  ]
+}

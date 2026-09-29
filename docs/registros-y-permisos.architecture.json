@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "api-movil · zero trust con Entra ID y AWS",
+    "output": "registros-y-permisos.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1280,
+      540
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "app Android"
+        },
+        "backend": {
+          "label": "servicio"
+        },
+        "database": {
+          "label": "datos"
+        },
+        "cloud": {
+          "label": "Microsoft 365"
+        },
+        "security": {
+          "label": "registro de Entra"
+        }
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "reg-serv",
+      "type": "security",
+      "label": "Soluciones AppFibra ETL (servidor)",
+      "sublabel": "cliente público · sin secreto",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "reg-fotos",
+      "type": "security",
+      "label": "Soluciones FotosObra (Android)",
+      "sublabel": "app móvil",
+      "pos": [
+        360,
+        60
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "reg-api",
+      "type": "security",
+      "label": "Soluciones API móvil",
+      "sublabel": "expone Fotos.Acceso",
+      "pos": [
+        680,
+        60
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "reg-kpi",
+      "type": "security",
+      "label": "Soluciones KPI (Android)",
+      "sublabel": "app móvil",
+      "pos": [
+        1000,
+        60
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "servidor",
+      "type": "backend",
+      "label": "AppFibra",
+      "sublabel": "Spring Boot · servidor",
+      "pos": [
+        40,
+        210
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "fotos",
+      "type": "frontend",
+      "label": "FotosObra",
+      "sublabel": "Android · técnicos",
+      "pos": [
+        360,
+        210
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "api-movil",
+      "sublabel": "API Gateway + Lambda",
+      "pos": [
+        680,
+        210
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "kpi",
+      "type": "frontend",
+      "label": "Insyte KPI",
+      "sublabel": "Android · dirección",
+      "pos": [
+        1000,
+        210
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "onedrive",
+      "type": "cloud",
+      "label": "OneDrive de dgf-mitte",
+      "sublabel": "fotos de obra · Excel KFU",
+      "pos": [
+        200,
+        380
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "dynamo",
+      "type": "database",
+      "label": "DynamoDB",
+      "sublabel": "cifras · carpetas · acceso",
+      "pos": [
+        680,
+        380
+      ],
+      "size": [
+        240,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Entra ID · registros de aplicación",
+      "wraps": [
+        "reg-serv",
+        "reg-fotos",
+        "reg-api",
+        "reg-kpi"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "AWS eu-central-1",
+      "wraps": [
+        "api",
+        "dynamo"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "t-serv",
+      "from": "reg-serv",
+      "to": "servidor",
+      "label": "token delegado de dgf-mitte",
+      "variant": "security",
+      "labelAt": [
+        160,
+        167
+      ]
+    },
+    {
+      "id": "t-fotos",
+      "from": "reg-fotos",
+      "to": "fotos",
+      "label": "token delegado del técnico",
+      "variant": "security",
+      "labelAt": [
+        480,
+        167
+      ]
+    },
+    {
+      "id": "t-api",
+      "from": "reg-api",
+      "to": "api",
+      "label": "audiencia exigida",
+      "variant": "security",
+      "labelAt": [
+        800,
+        167
+      ]
+    },
+    {
+      "id": "t-kpi",
+      "from": "reg-kpi",
+      "to": "kpi",
+      "label": "token delegado",
+      "variant": "security",
+      "labelAt": [
+        1120,
+        167
+      ]
+    },
+    {
+      "id": "fotos-api",
+      "from": "fotos",
+      "to": "api",
+      "label": "Bearer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "kpi-api",
+      "from": "kpi",
+      "to": "api",
+      "label": "Bearer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lee",
+      "from": "servidor",
+      "to": "onedrive",
+      "label": "Files.Read.All: solo lee",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "sube",
+      "from": "fotos",
+      "to": "onedrive",
+      "label": "Files.ReadWrite.All: sube fotos",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "lee-dynamo",
+      "from": "api",
+      "to": "dynamo",
+      "label": "rol de la Lambda: solo lee",
+      "variant": "default",
+      "labelAt": [
+        800,
+        327
+      ]
+    },
+    {
+      "id": "publica",
+      "from": "servidor",
+      "to": "dynamo",
+      "label": "usuario IAM: solo escribe",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          160,
+          495
+        ],
+        [
+          800,
+          495
+        ]
+      ],
+      "labelAt": [
+        560,
+        495
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Verificar siempre",
+      "items": [
+        "Firma, emisor y audiencia en cada petición",
+        "Entra dice quién eres; AppFibra, qué ves"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Mínimo privilegio",
+      "items": [
+        "Solo permisos delegados, ninguno de aplicación",
+        "El servidor solo lee; la Lambda solo lee"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Asumir la brecha",
+      "items": [
+        "Token del servidor robado: solo lectura",
+        "API atacada: no tiene camino al Drive"
+      ]
+    }
+  ]
+}
