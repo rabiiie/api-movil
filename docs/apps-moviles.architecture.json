@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Apps móviles y api-movil",
+    "output": "apps-moviles.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      580
+    ]
+  },
+  "components": [
+    {
+      "id": "onedrive",
+      "type": "cloud",
+      "label": "OneDrive",
+      "sublabel": "fotos de obra",
+      "pos": [
+        40,
+        110
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "fotos",
+      "type": "frontend",
+      "label": "FotosObra",
+      "sublabel": "Android",
+      "pos": [
+        270,
+        110
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "kpi",
+      "type": "frontend",
+      "label": "Insyte KPI",
+      "sublabel": "Android",
+      "pos": [
+        270,
+        330
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "HTTP API /v1",
+      "sublabel": "authorizer JWT",
+      "pos": [
+        510,
+        220
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "lcarp",
+      "type": "backend",
+      "label": "Lambda carpetas",
+      "sublabel": "GET /yo/carpetas",
+      "pos": [
+        750,
+        110
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "ldir",
+      "type": "backend",
+      "label": "Lambda dirección",
+      "sublabel": "GET /direccion/*",
+      "pos": [
+        750,
+        330
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "dcarp",
+      "type": "database",
+      "label": "fotosobra-carpetas",
+      "sublabel": "DynamoDB",
+      "pos": [
+        990,
+        110
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "ddir",
+      "type": "database",
+      "label": "direccion-*",
+      "sublabel": "resumen · acceso",
+      "pos": [
+        990,
+        330
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "entra",
+      "type": "security",
+      "label": "Entra ID",
+      "sublabel": "emite el token",
+      "pos": [
+        510,
+        480
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "appfibra",
+      "type": "backend",
+      "label": "AppFibra",
+      "sublabel": "publicador IAM",
+      "pos": [
+        990,
+        480
+      ],
+      "size": [
+        170,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS eu-central-1",
+      "wraps": [
+        "api",
+        "lcarp",
+        "ldir",
+        "dcarp",
+        "ddir"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "subida",
+      "from": "fotos",
+      "to": "onedrive",
+      "label": "Graph",
+      "variant": "dashed"
+    },
+    {
+      "id": "pide-carpetas",
+      "from": "fotos",
+      "to": "api",
+      "label": "Bearer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pide-avance",
+      "from": "kpi",
+      "to": "api",
+      "label": "Bearer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "valida",
+      "from": "api",
+      "to": "entra",
+      "label": "firma y audiencia",
+      "variant": "security",
+      "labelAt": [
+        595,
+        440
+      ]
+    },
+    {
+      "id": "a-carpetas",
+      "from": "api",
+      "to": "lcarp",
+      "label": "carpetas",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a-direccion",
+      "from": "api",
+      "to": "ldir",
+      "label": "avance",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lee-carpetas",
+      "from": "lcarp",
+      "to": "dcarp",
+      "label": "por oid",
+      "variant": "default"
+    },
+    {
+      "id": "lee-direccion",
+      "from": "ldir",
+      "to": "ddir",
+      "label": "por oid",
+      "variant": "default"
+    },
+    {
+      "id": "publica",
+      "from": "appfibra",
+      "to": "ddir",
+      "label": "cifras 08:00",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Quién entra",
+      "items": [
+        "Entra dice quién es la persona",
+        "AppFibra decide qué ve (tabla de acceso)",
+        "Sin fila de acceso: no ve nada"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Qué guarda AWS",
+      "items": [
+        "Solo lo que AppFibra publica",
+        "Las Lambdas solo leen",
+        "Versión antigua de la app: 426"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Fuera de la API",
+      "items": [
+        "Las fotos van directas a OneDrive",
+        "Carpetas: las publica AppFibra también",
+        "Registros de CloudWatch, 30 días"
+      ]
+    }
+  ]
+}
